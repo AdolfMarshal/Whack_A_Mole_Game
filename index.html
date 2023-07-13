@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whack a Mole</title>
+    <link rel="stylesheet" href="game2.css">
+    <style>
+        #save-score-button {
+            padding: 10px 20px;
+            font-size: 20px;
+            background-color: #ccc;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        #save-score-button:hover {
+            background-color: #bbb;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/howler/2.2.3/howler.min.js"></script>
+    <script>
+        let currMoleTile;
+        let currPlantTile;
+        let score = 0;
+        let gameOver = false;
+        let hammer;
+
+        const sound = new Howl({
+          src: ['hit.mp3']
+        });
+        const sound2 = new Howl({
+          src: ['end.mp3']
+        });
+        const sound3 = new Howl({
+          src: ['pause.mp3']
+        });
+        const music = {
+          overworld: new Howl({
+            src: ['main theme.mp3'],
+            autoplay: true
+          })
+        };
+
+        window.onload = function() {
+          const startButton = document.getElementById("start-button");
+          const scoreboardButton = document.getElementById("scoreboard-button");
+          const scoreboardScreen = document.getElementById("scoreboard-screen");
+          const scoreboardTable = document.getElementById("scoreboard-table");
+          const scoreboardBody = document.getElementById("scoreboard-body");
+          const scoreboardCloseButton = document.getElementById("scoreboard-close-button");
+          const exitButton = document.getElementById("exit-button");
+          const startScreen = document.getElementById("start-screen");
+          const restartButton = document.getElementById("restart-button");
+          const returnButton = document.getElementById("return-button");
+          const gameScreen = document.getElementById("game-screen");
+          const pauseButton = document.getElementById("pause-button");
+          const resumeButton = document.getElementById("resume-button");
+          const pauseOverlay = document.getElementById("pause-overlay");
+          const saveScoreButton = document.getElementById("save-score-button");
+
+          gameScreen.addEventListener('mousemove', moveHammer);
+          gameScreen.addEventListener('click', playClickAnimation);
+
+          startButton.addEventListener("click", function() {
+            startScreen.style.display = "none";
+            gameScreen.style.display = "block";
+            setGame();
+          });
+          const scoreboardResetButton = document.getElementById("scoreboard-reset-button");
+  scoreboardResetButton.addEventListener("click", resetScoreboard);
+
+          scoreboardButton.addEventListener("click", function() {
+            showScoreboard();
+          });
+
+          exitButton.addEventListener("click", function() {
+            closePage();
+          });
+
+          scoreboardCloseButton.addEventListener("click", function() {
+            hideScoreboard();
+          });
+
+          returnButton.addEventListener("click", function() {
+            returnToStartScreen();
+            updateScoreboard(score);
+          });
+
+          pauseButton.addEventListener("click", function() {
+            if (!gameOver) {
+              pauseGame();
+            }
+          });
+
+          restartButton.addEventListener("click", function() {
+            resetGame();
+          });
+
+          saveScoreButton.addEventListener("click", function() {
+            if (gameOver) {
+              saveScore();
+            }
+          });
+          function resetScoreboard() {
+  localStorage.removeItem("gameData");
+  displayScoreboardData();
+}
+
+          function returnToStartScreen() {
+            const startScreen = document.getElementById("start-screen");
+            const gameScreen = document.getElementById("game-screen");
+
+            startScreen.style.display = "block";
+            gameScreen.style.display = "none";
+
+            score = 0;
+            gameOver = false;
+            currMoleTile = null;
+            currPlantTile = null;
+            document.getElementById("score").innerText = "0";
+            document.getElementById("board").innerHTML = "";
+          }
+
+          function showScoreboard() {
+            const startScreen = document.getElementById("start-screen");
+            const gameScreen = document.getElementById("game-screen");
+            scoreboardScreen.style.display = "block";
+            startScreen.style.display = "none";
+            gameScreen.style.display = "none";
+
+            displayScoreboardData();
+          }
+
+          function hideScoreboard() {
+            const startScreen = document.getElementById("start-screen");
+            const gameScreen = document.getElementById("game-screen");
+            scoreboardScreen.style.display = "none";
+            startScreen.style.display = "block";
+            gameScreen.style.display = "none";
+          }
+
+          function getGameData() {
+            let gameData = localStorage.getItem("gameData");
+            if (!gameData) {
+              gameData = [];
+            } else {
+              gameData = JSON.parse(gameData);
+            }
+            return gameData;
+          }
+
+          function closePage() {
+            if (confirm("Are you sure you want to exit the game?")) {
+              window.close();
+            }
+          }
+
+          function updateScoreboard(score) {
+            const scoreCell = document.getElementById("score-cell");
+            if (scoreCell) {
+              scoreCell.innerText = score.toString();
+            }
+          }
+
+          function displayScoreboardData() {
+  const gameData = getGameData();
+  const scoreboardBody = document.getElementById("scoreboard-body");
+
+  scoreboardBody.innerHTML = ""; // Clear existing scoreboard data
+
+  gameData.forEach((data) => {
+    const row = document.createElement("tr");
+    const scoreCell = document.createElement("td");
+    const timeCell = document.createElement("td");
+
+    scoreCell.textContent = data.score.toString();
+    timeCell.textContent = data.timePlayed;
+
+    row.appendChild(scoreCell);
+    row.appendChild(timeCell);
+    scoreboardBody.appendChild(row);
+  });
+}
+          function getCurrentTime() {
+            const currentDate = new Date();
+            const hours = String(currentDate.getHours()).padStart(2, "0");
+            const minutes = String(currentDate.getMinutes()).padStart(2, "0");
+            const seconds = String(currentDate.getSeconds()).padStart(2, "0");
+            const currentTime = `${hours}:${minutes}:${seconds}`;
+            return currentTime;
+          }
+
+          function pauseGame() {
+            const pauseOverlay = document.getElementById("pause-overlay");
+            if (pauseOverlay) {
+              pauseOverlay.parentNode.removeChild(pauseOverlay);
+            }
+
+            const newPauseOverlay = document.createElement("div");
+            newPauseOverlay.id = "pause-overlay";
+            document.body.appendChild(newPauseOverlay);
+
+            gameOver = true;
+            sound3.play();
+            music.overworld.pause();
+
+            const pauseContent = document.createElement("div");
+            pauseContent.id = "pause-content";
+            newPauseOverlay.appendChild(pauseContent);
+
+            const pauseText = document.createElement("h2");
+            pauseText.textContent = "Game Paused";
+            pauseContent.appendChild(pauseText);
+
+            const resumeButton = document.createElement("button");
+            resumeButton.id = "resume-button";
+            resumeButton.textContent = "Resume";
+            pauseContent.appendChild(resumeButton);
+
+            resumeButton.addEventListener("click", resumeGame);
+          }
+
+          function resumeGame() {
+            const pauseOverlay = document.getElementById("pause-overlay");
+            if (pauseOverlay) {
+              pauseOverlay.parentNode.removeChild(pauseOverlay);
+            }
+            gameOver = false;
+            music.overworld.play();
+          }
+
+          function resetGame() {
+            score = 0;
+            document.getElementById("score").innerText = score.toString();
+            gameOver = false;
+            startScreen.style.display = "none";
+            gameScreen.style.display = "block";
+            setGame();
+          }
+
+          function moveHammer(event) {
+            if (!hammer) {
+              hammer = document.createElement('div');
+              hammer.classList.add('hammer');
+              hammer.innerHTML = '<img src="hammer.png" alt="Hammer">';
+              document.body.appendChild(hammer);
+            }
+
+            hammer.style.left = event.clientX + 'px';
+            hammer.style.top = event.clientY + 'px';
+          }
+
+          function playClickAnimation(event) {
+            if (!hammer) {
+              hammer = document.createElement('div');
+              hammer.classList.add('hammer');
+              hammer.innerHTML = '<img src="hammer.png" alt="Hammer">';
+              document.body.appendChild(hammer);
+            }
+
+            hammer.style.left = event.pageX + 'px';
+            hammer.style.top = event.pageY + 'px';
+
+            hammer.classList.add('swing');
+
+            setTimeout(() => {
+              hammer.classList.remove('swing');
+            }, 300);
+          }
+
+          function setGame() {
+            for (let i = 0; i < 9; i++) {
+              let tile = document.createElement("div");
+              tile.id = i.toString();
+              tile.addEventListener("click", selectTile);
+              document.getElementById("board").appendChild(tile);
+            }
+            setInterval(setMole, 1000);
+            setInterval(setPlant, 2000);
+          }
+
+          function getRandomTile() {
+            let num = Math.floor(Math.random() * 9);
+            return num.toString();
+          }
+
+          function setMole() {
+            if (gameOver) {
+              return;
+            }
+            if (currMoleTile) {
+              currMoleTile.innerHTML = "";
+            }
+            let mole = document.createElement("img");
+            mole.src = "./mole.png";
+
+            let num = getRandomTile();
+            if (currPlantTile && currPlantTile.id == num) {
+              return;
+            }
+            currMoleTile = document.getElementById(num);
+            currMoleTile.appendChild(mole);
+          }
+
+          function setPlant() {
+            if (gameOver) {
+              return;
+            }
+            if (currPlantTile) {
+              currPlantTile.innerHTML = "";
+            }
+            let plant = document.createElement("img");
+            plant.src = "./damage.png";
+
+            let num = getRandomTile();
+            if (currMoleTile && currMoleTile.id == num) {
+              return;
+            }
+            currPlantTile = document.getElementById(num);
+            currPlantTile.appendChild(plant);
+          }
+
+          function selectTile() {
+            if (gameOver) {
+              return;
+            }
+            if (this == currMoleTile) {
+              score += 10;
+              document.getElementById("score").innerText = score.toString();
+              sound.play();
+            } else if (this == currPlantTile) {
+              document.getElementById("score").innerText = "GAME OVER: " + score.toString();
+              gameOver = true;
+              sound2.play();
+              showSaveScoreButton();
+            }
+          }
+
+          function showSaveScoreButton() {
+            const saveScoreButton = document.getElementById("save-score-button");
+            if (saveScoreButton) {
+              saveScoreButton.style.display = "block";
+            }
+          }
+
+          function saveScore() {
+  updateScoreboard(score);
+  hideSaveScoreButton();
+
+  // Save the score to the game data
+  const currentTime = getCurrentTime();
+  const gameData = getGameData();
+  const newEntry = {
+    score: score,
+    timePlayed: currentTime
+  };
+  gameData.push(newEntry);
+  localStorage.setItem("gameData", JSON.stringify(gameData));
+  displayScoreboardData();
+}
+
+          function hideSaveScoreButton() {
+            const saveScoreButton = document.getElementById("save-score-button");
+            if (saveScoreButton) {
+              saveScoreButton.style.display = "none";
+            }
+          }
+        };
+    </script>
+</head>
+<body>
+    <div id="start-screen">
+        <h1><img src="./title.png" alt="Whack a Mole"></h1>
+        <button id="start-button">Start Game</button>
+        <button id="scoreboard-button">Scoreboard</button>
+        <button id="exit-button">Exit</button>
+    </div>
+
+    <div id="game-screen" style="display: none;">
+        <h4>Score:</h4>
+        <h2 id="score">0</h2>
+        <h3 id="time"></h3>
+        <div id="board"></div>
+        <button id="return-button">Return</button>
+        <button id="pause-button">Pause</button>
+        <button id="restart-button">Restart</button>
+        <button id="save-score-button" style="display: none;">Save Score</button>
+    </div>
+
+    <div id="scoreboard-screen" style="display: none;">
+        <h1>Scoreboard</h1>
+        <table id="scoreboard-table">
+            <thead>
+                <tr>
+                    <th>Score</th>
+                    <th>Time Played</th>
+                </tr>
+            </thead>
+            <tbody id="scoreboard-body">
+                <tr>
+                    <td id="score-cell"></td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+        <button id="scoreboard-reset-button">Reset Scores</button>
+        <button id="scoreboard-close-button">Close</button>
+    </div>
+
+    <div id="pause-overlay" style="display: none;">
+        <div id="pause-content">
+            <h2>Game Paused</h2>
+            <button id="resume-button">Resume</button>
+        </div>
+    </div>
+</body>
+</html>
